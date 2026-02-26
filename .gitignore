@@ -9,23 +9,25 @@
 # Claude
 .claude/
 
-# === Flutter (bal_vikas_app) ===
-bal_vikas_app/.dart_tool/
-bal_vikas_app/.flutter-plugins-dependencies
-bal_vikas_app/.pub-cache/
-bal_vikas_app/.pub/
-bal_vikas_app/build/
-bal_vikas_app/coverage/
-bal_vikas_app/**/doc/api/
-bal_vikas_app/**/ios/Flutter/.last_build_id
-bal_vikas_app/android/app/debug
-bal_vikas_app/android/app/profile
-bal_vikas_app/android/app/release
+# === Flutter (school_infra_app) ===
+school_infra_app/.dart_tool/
+school_infra_app/.flutter-plugins
+school_infra_app/.flutter-plugins-dependencies
+school_infra_app/.pub-cache/
+school_infra_app/.pub/
+school_infra_app/build/
+school_infra_app/coverage/
+school_infra_app/**/doc/api/
+school_infra_app/**/ios/Flutter/.last_build_id
+school_infra_app/**/ios/Pods/
+school_infra_app/android/app/debug
+school_infra_app/android/app/profile
+school_infra_app/android/app/release
 *.iml
 *.ipr
 *.iws
 
-# === Python (bal-vikas-backend) ===
+# === Python (school-infra-backend) ===
 __pycache__/
 *.py[cod]
 *$py.class
@@ -35,12 +37,10 @@ __pycache__/
 venv/
 .env
 
-# Uploads (user data)
-bal-vikas-backend/uploads/profile_photos/*
-bal-vikas-backend/uploads/videos/*
-!bal-vikas-backend/uploads/profile_photos/.gitkeep
-!bal-vikas-backend/uploads/videos/.gitkeep
+# APK / Build artifacts
+*.apk
+*.aab
+*.ipa
 
-# Data exports
-bal-vikas-backend/data/exports/*
-!bal-vikas-backend/data/exports/.gitkeep
+# Supabase temp files
+school_infra_app/supabase/.temp/
