@@ -176,6 +176,61 @@ class SchoolsTab extends ConsumerWidget {
               ],
             ),
           ),
+        // Category & Management filter chips
+        _CategoryManagementFilterChips(ref: ref),
+        // Infra demand type filter chips
+        _InfraFilterChips(ref: ref),
+        // Active filter chips (priority, category, management)
+        Builder(builder: (context) {
+          final priority = ref.watch(selectedPriorityProvider);
+          final category = ref.watch(selectedCategoryProvider);
+          final management = ref.watch(selectedManagementProvider);
+          final hasActiveFilter = priority != null || category != null || management != null;
+          if (!hasActiveFilter) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                if (priority != null)
+                  Chip(
+                    avatar: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: AppColors.forPriority(priority),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    label: Text(AppConstants.priorityLabel(priority),
+                        style: const TextStyle(fontSize: 12)),
+                    deleteIcon: const Icon(Icons.close, size: 16),
+                    onDeleted: () => ref.read(selectedPriorityProvider.notifier).set(null),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                if (category != null)
+                  Chip(
+                    avatar: const Icon(Icons.category, size: 14),
+                    label: Text(AppConstants.categoryLabel(category),
+                        style: const TextStyle(fontSize: 12)),
+                    deleteIcon: const Icon(Icons.close, size: 16),
+                    onDeleted: () => ref.read(selectedCategoryProvider.notifier).set(null),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                if (management != null)
+                  Chip(
+                    avatar: const Icon(Icons.business, size: 14),
+                    label: Text(AppConstants.managementLabel(management),
+                        style: const TextStyle(fontSize: 12)),
+                    deleteIcon: const Icon(Icons.close, size: 16),
+                    onDeleted: () => ref.read(selectedManagementProvider.notifier).set(null),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+          );
+        }),
         // School list
         Expanded(
           child: schoolsAsync.when(
@@ -415,6 +470,159 @@ class _Tag extends StatelessWidget {
       ),
       child:
           Text(label, style: TextStyle(fontSize: 10, color: color)),
+    );
+  }
+}
+
+class _InfraFilterChips extends StatelessWidget {
+  final WidgetRef ref;
+  const _InfraFilterChips({required this.ref});
+
+  static const _infraTypes = [
+    AppConstants.infraCWSNResourceRoom,
+    AppConstants.infraCWSNToilet,
+    AppConstants.infraDrinkingWater,
+    AppConstants.infraElectrification,
+    AppConstants.infraRamps,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = ref.watch(selectedInfraTypeProvider);
+    return SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          // "All" chip
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: FilterChip(
+              label: const Text('All', style: TextStyle(fontSize: 11)),
+              selected: selected == null,
+              onSelected: (_) {
+                ref.read(selectedInfraTypeProvider.notifier).set(null);
+              },
+              visualDensity: VisualDensity.compact,
+              showCheckmark: false,
+              selectedColor: AppColors.primary.withValues(alpha: 0.15),
+            ),
+          ),
+          // One chip per infra type
+          ..._infraTypes.map((type) {
+            final isSelected = selected == type;
+            final color = AppColors.forInfraType(type);
+            return Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: FilterChip(
+                avatar: Icon(AppConstants.infraTypeIcon(type),
+                    size: 14, color: isSelected ? color : AppColors.textSecondary),
+                label: Text(AppConstants.infraTypeLabel(type),
+                    style: TextStyle(fontSize: 11,
+                        color: isSelected ? color : null)),
+                selected: isSelected,
+                onSelected: (_) {
+                  ref.read(selectedInfraTypeProvider.notifier).set(isSelected ? null : type);
+                },
+                visualDensity: VisualDensity.compact,
+                showCheckmark: false,
+                selectedColor: color.withValues(alpha: 0.15),
+                side: isSelected ? BorderSide(color: color, width: 1.5) : null,
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryManagementFilterChips extends StatelessWidget {
+  final WidgetRef ref;
+  const _CategoryManagementFilterChips({required this.ref});
+
+  static const _categories = ['PS', 'UPS', 'HS', 'HSS'];
+  static const _managementTypes = ['MPP_ZP', 'GOVT', 'AIDED', 'PRIVATE'];
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedCat = ref.watch(selectedCategoryProvider);
+    final selectedMgmt = ref.watch(selectedManagementProvider);
+
+    return Column(
+      children: [
+        // Category chips (school type)
+        SizedBox(
+          height: 40,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            children: _categories.map((cat) {
+              final isSelected = selectedCat == cat;
+              return Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: FilterChip(
+                  avatar: Icon(Icons.category,
+                      size: 14,
+                      color: isSelected ? AppColors.primary : AppColors.textSecondary),
+                  label: Text(AppConstants.categoryLabel(cat),
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: isSelected ? AppColors.primary : null)),
+                  selected: isSelected,
+                  onSelected: (_) {
+                    ref.read(selectedCategoryProvider.notifier)
+                        .set(isSelected ? null : cat);
+                  },
+                  visualDensity: VisualDensity.compact,
+                  showCheckmark: false,
+                  selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                  side: isSelected
+                      ? const BorderSide(color: AppColors.primary, width: 1.5)
+                      : null,
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        // Management chips
+        SizedBox(
+          height: 40,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            children: _managementTypes.map((mgmt) {
+              final isSelected = selectedMgmt == mgmt;
+              return Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: FilterChip(
+                  avatar: Icon(Icons.business,
+                      size: 14,
+                      color: isSelected
+                          ? const Color(0xFF2E7D32)
+                          : AppColors.textSecondary),
+                  label: Text(AppConstants.managementLabel(mgmt),
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: isSelected ? const Color(0xFF2E7D32) : null)),
+                  selected: isSelected,
+                  onSelected: (_) {
+                    ref.read(selectedManagementProvider.notifier)
+                        .set(isSelected ? null : mgmt);
+                  },
+                  visualDensity: VisualDensity.compact,
+                  showCheckmark: false,
+                  selectedColor: const Color(0xFF2E7D32).withValues(alpha: 0.15),
+                  side: isSelected
+                      ? const BorderSide(color: Color(0xFF2E7D32), width: 1.5)
+                      : null,
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
     );
   }
 }

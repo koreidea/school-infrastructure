@@ -92,11 +92,17 @@ class ApiService {
     }
   }
 
-  /// Health check
+  /// Health check — hits /health on the base URL (not /api/health)
   static Future<bool> healthCheck() async {
     try {
-      final response = await _dio.get('/health');
-      return response.data['status'] == 'ok';
+      final dio = Dio(BaseOptions(
+        baseUrl: ApiConfig.baseUrl,
+        connectTimeout: const Duration(seconds: 5),
+        receiveTimeout: const Duration(seconds: 5),
+      ));
+      final response = await dio.get('/health');
+      final s = response.data['status'];
+      return s == 'ok' || s == 'healthy';
     } catch (_) {
       return false;
     }

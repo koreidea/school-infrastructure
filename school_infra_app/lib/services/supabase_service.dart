@@ -108,6 +108,7 @@ class SupabaseService {
     return (res as List).map((e) => DemandPlan.fromJson(e)).toList();
   }
 
+  /// Update AI validation results (Stage 1 of pipeline).
   static Future<void> updateDemandPlanValidation(
     int planId, {
     required String status,
@@ -124,6 +125,40 @@ class SupabaseService {
     }).eq('id', planId);
   }
 
+  /// Update officer decision (Stage 3 of pipeline).
+  static Future<void> updateOfficerDecision(
+    int planId, {
+    required String status,
+    required String officerName,
+    String? notes,
+  }) async {
+    await _client.from('si_demand_plans').update({
+      'officer_status': status,
+      'officer_name': officerName,
+      'officer_reviewed_at': DateTime.now().toIso8601String(),
+      'officer_notes': notes,
+    }).eq('id', planId);
+  }
+
+  /// Link a field assessment to a demand plan (Stage 2 of pipeline).
+  static Future<void> linkAssessmentToDemand(int planId, int assessmentId) async {
+    await _client.from('si_demand_plans').update({
+      'assessment_id': assessmentId,
+    }).eq('id', planId);
+  }
+
+  /// Get the latest assessment ID for a school (for hard gate check).
+  static Future<int?> getLatestAssessmentId(int schoolId) async {
+    final res = await _client
+        .from('si_infra_assessments')
+        .select('id')
+        .eq('school_id', schoolId)
+        .order('assessment_date', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    return res?['id'] as int?;
+  }
+
   // ─── Infrastructure Assessments ───
   static Future<InfraAssessment?> getLatestAssessment(int schoolId) async {
     final res = await _client
@@ -136,8 +171,39 @@ class SupabaseService {
     return res != null ? InfraAssessment.fromJson(res) : null;
   }
 
+  static Future<List<InfraAssessment>> getAllAssessments(int schoolId) async {
+    final res = await _client
+        .from('si_infra_assessments')
+        .select()
+        .eq('school_id', schoolId)
+        .order('assessment_date', ascending: false);
+    return (res as List)
+        .map((e) => InfraAssessment.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   static Future<void> saveAssessment(InfraAssessment assessment) async {
     await _client.from('si_infra_assessments').insert(assessment.toJson());
+  }
+
+  /// Fetch all assessments with school name joined.
+  /// Returns a list of maps: each assessment row + 'school_name' and 'school_udise_code'.
+  static Future<List<Map<String, dynamic>>> getAllAssessmentsWithSchool() async {
+    final res = await _client
+        .from('si_infra_assessments')
+        .select('*, si_schools!inner(school_name, udise_code, district_id, mandal_id)')
+        .order('assessment_date', ascending: false);
+    return (res as List).map((row) {
+      final r = Map<String, dynamic>.from(row as Map);
+      final school = r.remove('si_schools') as Map<String, dynamic>?;
+      if (school != null) {
+        r['school_name'] = school['school_name'];
+        r['school_udise_code'] = school['udise_code'];
+        r['school_district_id'] = school['district_id'];
+        r['school_mandal_id'] = school['mandal_id'];
+      }
+      return r;
+    }).toList();
   }
 
   // ─── Priority Scores ───
@@ -185,6 +251,29 @@ class SupabaseService {
     await _client.from('si_enrolment_forecasts').insert(forecast);
   }
 
+  /// Delete existing forecasts for a school and insert new ones.
+  static Future<void> saveBatchForecasts(
+      int schoolId, List<Map<String, dynamic>> forecasts) async {
+    // Delete old forecasts for this school
+    await _client
+        .from('si_enrolment_forecasts')
+        .delete()
+        .eq('school_id', schoolId);
+    // Insert new ones
+    if (forecasts.isNotEmpty) {
+      await _client.from('si_enrolment_forecasts').insert(forecasts);
+    }
+  }
+
+  /// Check if forecasts exist for any school.
+  static Future<bool> hasForecastData() async {
+    final res = await _client
+        .from('si_enrolment_forecasts')
+        .select('id')
+        .limit(1);
+    return (res as List).isNotEmpty;
+  }
+
   // ─── Dashboard Stats ───
   static Future<Map<String, dynamic>> getDashboardStats({
     int? districtId,
@@ -205,10 +294,10 @@ class SupabaseService {
     }
     final schools = await schoolQuery;
 
-    // Get demand plan stats (scoped via view)
+    // Get demand plan stats (scoped via view) — pipeline-aware
     var demandQuery = _client
         .from('si_demand_plans_view')
-        .select('validation_status');
+        .select('validation_status, officer_status');
     if (schoolId != null) {
       demandQuery = demandQuery.eq('school_id', schoolId);
     } else {
@@ -221,32 +310,69 @@ class SupabaseService {
     }
     final demands = await demandQuery;
 
-    int pending = 0, approved = 0, flagged = 0, rejected = 0;
+    int pending = 0, aiReviewed = 0, approved = 0, flagged = 0, rejected = 0;
     for (final d in demands) {
-      switch (d['validation_status']) {
-        case 'PENDING':
-          pending++;
-          break;
-        case 'APPROVED':
-          approved++;
-          break;
-        case 'FLAGGED':
-          flagged++;
-          break;
-        case 'REJECTED':
-          rejected++;
-          break;
+      final vs = d['validation_status'] as String? ?? 'PENDING';
+      final os = d['officer_status'] as String? ?? 'PENDING';
+
+      if (vs == 'PENDING') {
+        pending++;
+      } else if (os == 'APPROVED') {
+        approved++;
+      } else if (os == 'FLAGGED') {
+        flagged++;
+      } else if (os == 'REJECTED') {
+        rejected++;
+      } else {
+        // AI reviewed but officer pending
+        aiReviewed++;
       }
     }
 
     return {
       'total_schools': (schools as List).length,
       'demand_pending': pending,
+      'demand_ai_reviewed': aiReviewed,
       'demand_approved': approved,
       'demand_flagged': flagged,
       'demand_rejected': rejected,
-      'total_demands': pending + approved + flagged + rejected,
+      'total_demands': pending + aiReviewed + approved + flagged + rejected,
     };
+  }
+
+  // ─── HM: Demand Plan Creation ───
+
+  /// HM: Create a new demand plan (raise infrastructure request).
+  static Future<int> createDemandPlan({
+    required int schoolId,
+    required int planYear,
+    required String infraType,
+    required int physicalCount,
+    required double financialAmount,
+    String? justification,
+  }) async {
+    final res = await _client.from('si_demand_plans').insert({
+      'school_id': schoolId,
+      'plan_year': planYear,
+      'infra_type': infraType,
+      'physical_count': physicalCount,
+      'financial_amount': financialAmount,
+      'validation_status': 'PENDING',
+      'officer_status': 'PENDING',
+      if (justification != null && justification.isNotEmpty)
+        'officer_notes': justification,
+    }).select('id').single();
+    return res['id'] as int;
+  }
+
+  /// HM: Cancel a pending demand (only if still PENDING on both stages).
+  static Future<void> cancelDemandPlan(int planId) async {
+    await _client
+        .from('si_demand_plans')
+        .delete()
+        .eq('id', planId)
+        .eq('validation_status', 'PENDING')
+        .eq('officer_status', 'PENDING');
   }
 
   // ─── Users ───

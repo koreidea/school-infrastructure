@@ -9,7 +9,8 @@ class SupabaseConfig {
 }
 
 class ApiConfig {
-  static const String baseUrl = 'http://localhost:8000';
+  // Railway cloud deployment — accessible from any device/network
+  static const String baseUrl = 'https://web-production-0d5dd.up.railway.app';
   static const String apiPrefix = '/api';
   static String get fullBaseUrl => '$baseUrl$apiPrefix';
 
@@ -50,6 +51,7 @@ class AppColors {
   static const Color statusFlagged = Color(0xFFF57C00);
   static const Color statusRejected = Color(0xFFF44336);
   static const Color statusPending = Color(0xFF9E9E9E);
+  static const Color statusAIReviewed = Color(0xFF7B1FA2); // deep purple
 
   static const Color accent = Color(0xFF00897B);
   static const Color background = Color(0xFFF5F5F5);
@@ -85,6 +87,23 @@ class AppColors {
     }
   }
 
+  static Color forPipelineStage(String stage) {
+    switch (stage) {
+      case 'PENDING':
+        return statusPending;
+      case 'AI_REVIEWED':
+        return statusAIReviewed;
+      case 'FINAL_APPROVED':
+        return statusApproved;
+      case 'FLAGGED':
+        return statusFlagged;
+      case 'REJECTED':
+        return statusRejected;
+      default:
+        return statusPending;
+    }
+  }
+
   static Color forInfraType(String type) {
     switch (type) {
       case 'CWSN_RESOURCE_ROOM':
@@ -104,8 +123,8 @@ class AppColors {
 }
 
 class AppConstants {
-  static const String appName = 'Vidya Soudha';
-  static const String appNameTe = 'విద్యా సౌధ';
+  static const String appName = 'Vidya Nirmaan';
+  static const String appNameTe = 'విద్యా నిర్మాణ్';
   static const String appTagline = 'AI-Powered School Infrastructure Planning';
 
   // Roles
@@ -218,6 +237,40 @@ class AppConstants {
         return 'Pending';
       default:
         return status;
+    }
+  }
+
+  static String pipelineStageLabel(String stage) {
+    switch (stage) {
+      case 'PENDING':
+        return 'Pending';
+      case 'AI_REVIEWED':
+        return 'AI Reviewed';
+      case 'FINAL_APPROVED':
+        return 'Approved';
+      case 'FLAGGED':
+        return 'Flagged';
+      case 'REJECTED':
+        return 'Rejected';
+      default:
+        return stage;
+    }
+  }
+
+  static IconData pipelineStageIcon(String stage) {
+    switch (stage) {
+      case 'PENDING':
+        return Icons.hourglass_empty;
+      case 'AI_REVIEWED':
+        return Icons.smart_toy;
+      case 'FINAL_APPROVED':
+        return Icons.check_circle;
+      case 'FLAGGED':
+        return Icons.flag;
+      case 'REJECTED':
+        return Icons.cancel;
+      default:
+        return Icons.help_outline;
     }
   }
 

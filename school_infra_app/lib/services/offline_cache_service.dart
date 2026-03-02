@@ -10,6 +10,7 @@ class OfflineCacheService {
   static const String _schoolsBox = 'schools_cache';
   static const String _demandsBox = 'demands_cache';
   static const String _assessmentsBox = 'assessments_queue';
+  static const String _demandQueueBox = 'demands_queue';
   static const String _metaBox = 'cache_meta';
 
   static Future<void> initialize() async {
@@ -17,6 +18,7 @@ class OfflineCacheService {
     await Hive.openBox<String>(_schoolsBox);
     await Hive.openBox<String>(_demandsBox);
     await Hive.openBox<String>(_assessmentsBox);
+    await Hive.openBox<String>(_demandQueueBox);
     await Hive.openBox<String>(_metaBox);
   }
 
@@ -88,6 +90,30 @@ class OfflineCacheService {
 
   static int get pendingAssessmentCount =>
       Hive.box<String>(_assessmentsBox).length;
+
+  // ─── Offline Demand Queue (HM) ───
+
+  static Future<void> queueDemandPlan(Map<String, dynamic> demandData) async {
+    final box = Hive.box<String>(_demandQueueBox);
+    final key = 'demand_${DateTime.now().millisecondsSinceEpoch}';
+    await box.put(key, jsonEncode(demandData));
+  }
+
+  static List<MapEntry<String, Map<String, dynamic>>> getPendingDemandPlans() {
+    final box = Hive.box<String>(_demandQueueBox);
+    return box.toMap().entries.map((e) {
+      final data = jsonDecode(e.value) as Map<String, dynamic>;
+      return MapEntry(e.key.toString(), data);
+    }).toList();
+  }
+
+  static Future<void> removeDemandPlan(String key) async {
+    final box = Hive.box<String>(_demandQueueBox);
+    await box.delete(key);
+  }
+
+  static int get pendingDemandCount =>
+      Hive.box<String>(_demandQueueBox).length;
 
   // ─── Meta ───
 

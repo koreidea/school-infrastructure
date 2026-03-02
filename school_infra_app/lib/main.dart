@@ -5,7 +5,7 @@ import 'config/api_config.dart';
 import 'services/supabase_service.dart';
 import 'services/offline_cache_service.dart';
 import 'screens/dashboard/dashboard_screen.dart';
-import 'screens/auth/role_selection_screen.dart';
+import 'screens/auth/login_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/locale_provider.dart';
 import 'l10n/app_localizations.dart';
@@ -82,14 +82,14 @@ class AppEntryPoint extends ConsumerWidget {
     return userAsync.when(
       data: (user) {
         if (user == null) {
-          return const RoleSelectionScreen();
+          return const LoginScreen();
         }
         return const DashboardScreen();
       },
       loading: () => const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       ),
-      error: (e, _) => const RoleSelectionScreen(),
+      error: (e, _) => const LoginScreen(),
     );
   }
 }

@@ -10,11 +10,15 @@ import '../../../l10n/app_localizations.dart';
 class OverviewTab extends ConsumerWidget {
   final VoidCallback? onNavigateToSchools;
   final VoidCallback? onNavigateToValidation;
+  final void Function(String priorityLevel)? onNavigateToSchoolsWithPriority;
+  final void Function(String infraType)? onNavigateToSchoolsWithInfraType;
 
   const OverviewTab({
     super.key,
     this.onNavigateToSchools,
     this.onNavigateToValidation,
+    this.onNavigateToSchoolsWithPriority,
+    this.onNavigateToSchoolsWithInfraType,
   });
 
   @override
@@ -70,7 +74,6 @@ class OverviewTab extends ConsumerWidget {
 
           // Priority Distribution Pie Chart
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 l10n.translate('priority_level'),
@@ -79,10 +82,17 @@ class OverviewTab extends ConsumerWidget {
                     .titleMedium
                     ?.copyWith(fontWeight: FontWeight.w600),
               ),
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: () => _showPriorityInfoDialog(context, l10n),
+                child: Icon(Icons.info_outline, size: 18, color: AppColors.textSecondary),
+              ),
+              const Spacer(),
               FilledButton.tonalIcon(
                 onPressed: computeState.isLoading
                     ? null
                     : () async {
+                        // Show explanation first time, then run
                         await ref
                             .read(computePriorityScoresProvider.notifier)
                             .computeAll();
@@ -121,14 +131,25 @@ class OverviewTab extends ConsumerWidget {
               ),
             ],
           ),
+          // AI Validate explanation
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              l10n.translate('ai_scoring_desc'),
+              style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.4),
+            ),
+          ),
           const SizedBox(height: 12),
           priorityAsync.when(
-            data: (dist) => _PriorityPieChart(distribution: dist),
+            data: (dist) => _PriorityPieChart(
+                distribution: dist,
+                onPriorityTap: onNavigateToSchoolsWithPriority),
             loading: () => const SizedBox(
                 height: 200, child: Center(child: CircularProgressIndicator())),
             error: (_, __) => _PriorityPieChart(
                 distribution: PriorityDistribution(
-                    critical: 15, high: 45, medium: 120, low: 139)),
+                    critical: 15, high: 45, medium: 120, low: 139),
+                onPriorityTap: onNavigateToSchoolsWithPriority),
           ),
           const SizedBox(height: 20),
 
@@ -145,14 +166,146 @@ class OverviewTab extends ConsumerWidget {
             data: (summaries) => _DemandSummaryCards(
               summaries: summaries,
               onNavigateToValidation: onNavigateToValidation,
+              onInfraTypeTap: onNavigateToSchoolsWithInfraType,
             ),
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (_, __) => _DemandSummaryCards(
               summaries: _demoSummaries(),
               onNavigateToValidation: onNavigateToValidation,
+              onInfraTypeTap: onNavigateToSchoolsWithInfraType,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  static void _showPriorityInfoDialog(BuildContext context, AppLocalizations l10n) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Title bar
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 16, 8, 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.psychology, color: AppColors.primary, size: 22),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(l10n.translate('priority_info_title'),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Scrollable content
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Overview
+                      Text(l10n.translate('priority_info_body'),
+                          style: const TextStyle(fontSize: 13, height: 1.5)),
+                      const SizedBox(height: 12),
+                      // Formula
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                        ),
+                        child: Text(
+                          l10n.translate('formula_label'),
+                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600,
+                              fontFamily: 'monospace', height: 1.4),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Factor 1: Enrolment Pressure
+                      _FactorSection(
+                        icon: Icons.trending_up,
+                        color: Colors.blue,
+                        title: l10n.translate('enrolment_pressure_calc'),
+                        detail: l10n.translate('enrolment_pressure_detail'),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Factor 2: Infrastructure Gap
+                      _FactorSection(
+                        icon: Icons.construction,
+                        color: Colors.orange,
+                        title: l10n.translate('infra_gap_calc'),
+                        detail: l10n.translate('infra_gap_detail'),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Factor 3: CWSN Needs
+                      _FactorSection(
+                        icon: Icons.accessible,
+                        color: Colors.purple,
+                        title: l10n.translate('cwsn_calc'),
+                        detail: l10n.translate('cwsn_detail'),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Factor 4: Accessibility
+                      _FactorSection(
+                        icon: Icons.water_drop,
+                        color: Colors.teal,
+                        title: l10n.translate('accessibility_calc'),
+                        detail: l10n.translate('accessibility_detail'),
+                      ),
+
+                      const SizedBox(height: 16),
+                      const Divider(),
+                      const SizedBox(height: 8),
+
+                      // Priority levels
+                      _PriorityExplainRow(
+                        color: AppColors.priorityCritical,
+                        title: l10n.translate('critical'),
+                        desc: l10n.translate('critical_desc'),
+                      ),
+                      const SizedBox(height: 8),
+                      _PriorityExplainRow(
+                        color: AppColors.priorityHigh,
+                        title: l10n.translate('high_priority'),
+                        desc: l10n.translate('high_priority_desc'),
+                      ),
+                      const SizedBox(height: 8),
+                      _PriorityExplainRow(
+                        color: AppColors.priorityMedium,
+                        title: l10n.translate('medium_priority'),
+                        desc: l10n.translate('medium_priority_desc'),
+                      ),
+                      const SizedBox(height: 8),
+                      _PriorityExplainRow(
+                        color: AppColors.priorityLow,
+                        title: l10n.translate('low_priority'),
+                        desc: l10n.translate('low_priority_desc'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -295,7 +448,8 @@ class _StatCard extends StatelessWidget {
 
 class _PriorityPieChart extends StatelessWidget {
   final PriorityDistribution distribution;
-  const _PriorityPieChart({required this.distribution});
+  final void Function(String priorityLevel)? onPriorityTap;
+  const _PriorityPieChart({required this.distribution, this.onPriorityTap});
 
   @override
   Widget build(BuildContext context) {
@@ -368,18 +522,25 @@ class _PriorityPieChart extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _LegendItem(l10n.translate('critical'), AppColors.priorityCritical,
-                    distribution.critical),
-                const SizedBox(height: 8),
+                    distribution.critical, subtitle: '> 80',
+                    onTap: () => onPriorityTap?.call('CRITICAL')),
+                const SizedBox(height: 2),
                 _LegendItem(
-                    l10n.translate('high_priority'), AppColors.priorityHigh, distribution.high),
-                const SizedBox(height: 8),
+                    l10n.translate('high_priority'), AppColors.priorityHigh, distribution.high,
+                    subtitle: '60–80',
+                    onTap: () => onPriorityTap?.call('HIGH')),
+                const SizedBox(height: 2),
                 _LegendItem(
-                    l10n.translate('medium_priority'), AppColors.priorityMedium, distribution.medium),
+                    l10n.translate('medium_priority'), AppColors.priorityMedium, distribution.medium,
+                    subtitle: '40–60',
+                    onTap: () => onPriorityTap?.call('MEDIUM')),
+                const SizedBox(height: 2),
+                _LegendItem(l10n.translate('low_priority'), AppColors.priorityLow, distribution.low,
+                    subtitle: '≤ 40',
+                    onTap: () => onPriorityTap?.call('LOW')),
                 const SizedBox(height: 8),
-                _LegendItem(l10n.translate('low_priority'), AppColors.priorityLow, distribution.low),
-                const SizedBox(height: 12),
                 Text('${l10n.translate("total")}: ${distribution.total}',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               ],
             );
           }),
@@ -393,16 +554,117 @@ class _LegendItem extends StatelessWidget {
   final String label;
   final Color color;
   final int count;
-  const _LegendItem(this.label, this.color, this.count);
+  final String? subtitle;
+  final VoidCallback? onTap;
+  const _LegendItem(this.label, this.color, this.count, {this.subtitle, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('$label ($count)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                  if (subtitle != null)
+                    Text('Score $subtitle', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                ],
+              ),
+              if (onTap != null) ...[
+                const SizedBox(width: 4),
+                Icon(Icons.arrow_forward_ios, size: 10, color: color),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FactorSection extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String detail;
+  const _FactorSection({required this.icon, required this.color, required this.title, required this.detail});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(detail, style: const TextStyle(fontSize: 11.5, height: 1.5, color: Colors.black87)),
+        ],
+      ),
+    );
+  }
+}
+
+class _PriorityExplainRow extends StatelessWidget {
+  final Color color;
+  final String title;
+  final String desc;
+  const _PriorityExplainRow({required this.color, required this.title, required this.desc});
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(width: 12, height: 12, color: color),
-        const SizedBox(width: 8),
-        Text('$label ($count)', style: const TextStyle(fontSize: 13)),
+        Container(
+          width: 14,
+          height: 14,
+          margin: const EdgeInsets.only(top: 2),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: color)),
+              const SizedBox(height: 2),
+              Text(desc, style: const TextStyle(fontSize: 12, color: Colors.black87, height: 1.3)),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -411,9 +673,11 @@ class _LegendItem extends StatelessWidget {
 class _DemandSummaryCards extends StatelessWidget {
   final List<DemandSummary> summaries;
   final VoidCallback? onNavigateToValidation;
+  final void Function(String infraType)? onInfraTypeTap;
   const _DemandSummaryCards({
     required this.summaries,
     this.onNavigateToValidation,
+    this.onInfraTypeTap,
   });
 
   @override
@@ -434,7 +698,7 @@ class _DemandSummaryCards extends StatelessWidget {
         return Card(
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: onNavigateToValidation,
+            onTap: () => onInfraTypeTap?.call(s.infraType),
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor: color.withValues(alpha: 0.15),
@@ -452,7 +716,7 @@ class _DemandSummaryCards extends StatelessWidget {
                         color: AppColors.primary,
                         fontSize: 14),
                   ),
-                  if (onNavigateToValidation != null) ...[
+                  if (onInfraTypeTap != null) ...[
                     const SizedBox(width: 4),
                     Icon(Icons.arrow_forward_ios,
                         size: 12, color: AppColors.textSecondary),

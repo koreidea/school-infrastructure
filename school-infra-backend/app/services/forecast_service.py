@@ -73,8 +73,41 @@ def forecast_school(school_id: int, years_ahead: int = 1) -> dict:
     # Generate forecasts
     forecasts = []
     last_year_parts = years[-1].split("-")
-    r2_score = float(model_total.score(X, y_total))
-    confidence = max(0.3, min(0.95, r2_score))
+
+    # Confidence = model_fit × data_quality × horizon_decay × volatility_factor
+    # model_fit: R² score of linear regression (how well the line fits)
+    r2 = float(model_total.score(X, y_total))
+    model_fit = max(0.5, min(0.98, r2))
+
+    # data_quality: more historical years = more reliable
+    n_years = len(years)
+    if n_years >= 5:
+        data_quality = 0.93
+    elif n_years >= 4:
+        data_quality = 0.88
+    elif n_years >= 3:
+        data_quality = 0.82
+    else:
+        data_quality = 0.75
+
+    # volatility_factor: penalize if year-to-year changes are erratic
+    volatility_factor = 1.0
+    if n_years >= 3:
+        changes = []
+        for j in range(1, n_years):
+            prev = y_total[j - 1]
+            curr = y_total[j]
+            if prev > 0:
+                changes.append(abs(curr - prev) / prev)
+        if changes:
+            avg_change = sum(changes) / len(changes)
+            if avg_change > 0.25:
+                volatility_factor = 0.85
+            elif avg_change > 0.15:
+                volatility_factor = 0.92
+
+    # horizon_decay: further predictions are less reliable
+    horizon_decay = {1: 1.0, 2: 0.92, 3: 0.82}
 
     for ahead in range(1, years_ahead + 1):
         future_x = np.array([[len(years) - 1 + ahead]])
@@ -90,6 +123,10 @@ def forecast_school(school_id: int, years_ahead: int = 1) -> dict:
         except (ValueError, IndexError):
             forecast_year = f"Year+{ahead}"
 
+        decay = horizon_decay.get(ahead, 0.60)
+        conf = model_fit * data_quality * decay * volatility_factor
+        conf = max(0.20, min(0.95, conf))
+
         forecasts.append({
             "school_id": school_id,
             "forecast_year": forecast_year,
@@ -97,7 +134,7 @@ def forecast_school(school_id: int, years_ahead: int = 1) -> dict:
             "predicted_total": pred_total,
             "predicted_boys": pred_boys,
             "predicted_girls": pred_girls,
-            "confidence": round(confidence, 3),
+            "confidence": round(conf, 2),
             "model_used": "LinearRegression",
         })
 
@@ -150,6 +187,13 @@ def _cohort_forecast(records: list[dict], years: list[str], years_ahead: int) ->
     last_year = data.get(years[-1], {})
     last_year_parts = years[-1].split("-")
 
+    # Cohort confidence: based on how many year-pairs we have for progression rates
+    n_year_pairs = len(years) - 1
+    cohort_data_quality = 0.75 if n_year_pairs <= 1 else (
+        0.82 if n_year_pairs <= 2 else (0.88 if n_year_pairs <= 3 else 0.93)
+    )
+    cohort_horizon_decay = {1: 1.0, 2: 0.92, 3: 0.82}
+
     for ahead in range(1, years_ahead + 1):
         try:
             start_yr = int(last_year_parts[0]) + ahead
@@ -158,6 +202,8 @@ def _cohort_forecast(records: list[dict], years: list[str], years_ahead: int) ->
         except (ValueError, IndexError):
             forecast_year = f"Year+{ahead}"
 
+        decay = cohort_horizon_decay.get(ahead, 0.60)
+
         for j in range(1, len(grade_order)):
             g_from = grade_order[j - 1]
             g_to = grade_order[j]
@@ -165,13 +211,18 @@ def _cohort_forecast(records: list[dict], years: list[str], years_ahead: int) ->
             from_count = last_year.get(g_from, 0)
             predicted = max(0, int(from_count * rate))
 
+            # Per-grade confidence: if we have actual rate data, higher confidence
+            has_actual_rate = (g_from, g_to) in avg_rates
+            rate_quality = 0.85 if has_actual_rate else 0.50
+            conf = round(max(0.20, min(0.95, cohort_data_quality * decay * rate_quality)), 2)
+
             if predicted > 0:
                 forecasts.append({
                     "school_id": 0,  # Will be set by caller
                     "forecast_year": forecast_year,
                     "grade": g_to,
                     "predicted_total": predicted,
-                    "confidence": 0.7,
+                    "confidence": conf,
                     "model_used": "CohortProgression",
                 })
 

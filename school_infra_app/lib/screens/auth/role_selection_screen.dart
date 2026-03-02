@@ -27,12 +27,6 @@ class RoleSelectionScreen extends ConsumerWidget {
         icon: Icons.location_city,
       ),
       _Role(
-        key: AppConstants.roleBlockOfficer,
-        title: l10n.translate('role_block_officer'),
-        subtitle: l10n.translate('nav_schools'),
-        icon: Icons.map,
-      ),
-      _Role(
         key: AppConstants.roleFieldInspector,
         title: l10n.translate('role_field_inspector'),
         subtitle: l10n.translate('infrastructure_assessment'),

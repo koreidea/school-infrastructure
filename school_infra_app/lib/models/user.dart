@@ -59,12 +59,13 @@ class AppUser {
   bool get isAdmin => role == AppConstants.roleAdmin;
 
   bool get canValidate =>
-      isBlockOfficer || isDistrictOfficer || isStateOfficial || isAdmin;
+      isDistrictOfficer || isStateOfficial || isAdmin;
   bool get canViewAllSchools =>
       isDistrictOfficer || isStateOfficial || isAdmin;
   bool get canViewMap => true;
   bool get canExport => canValidate;
   bool get canInspect => isFieldInspector || isBlockOfficer || isAdmin;
+  bool get canRaiseDemand => isSchoolHM;
 }
 
 class District {

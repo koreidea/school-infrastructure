@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:excel/excel.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -10,10 +11,31 @@ import '../models/enrolment.dart';
 import '../config/api_config.dart';
 
 class ExportService {
+  /// Descriptive status label showing AI vs Officer stage
+  static String _demandStatusLabel(DemandPlan d) {
+    final stage = d.pipelineStage;
+    switch (stage) {
+      case 'PENDING':
+        return 'Pending (AI Review)';
+      case 'AI_REVIEWED':
+        final aiVerdict = AppConstants.validationLabel(d.validationStatus);
+        return 'AI $aiVerdict (Officer Pending)';
+      case 'FINAL_APPROVED':
+        return 'Approved (Officer)';
+      case 'FLAGGED':
+        return d.isOfficerPending ? 'Flagged (AI)' : 'Flagged (Officer)';
+      case 'REJECTED':
+        return d.isOfficerPending ? 'Rejected (AI)' : 'Rejected (Officer)';
+      default:
+        return stage;
+    }
+  }
+
   /// Export school list with demands to Excel
   static Future<void> exportSchoolsExcel({
     required List<School> schools,
     required List<DemandPlan> demands,
+    Rect? sharePositionOrigin,
   }) async {
     final excel = Excel.createExcel();
 
@@ -64,7 +86,7 @@ class ExportService {
         TextCellValue(d.infraTypeLabel),
         IntCellValue(d.physicalCount),
         DoubleCellValue(d.financialAmount),
-        TextCellValue(AppConstants.validationLabel(d.validationStatus)),
+        TextCellValue(_demandStatusLabel(d)),
         DoubleCellValue(d.validationScore ?? 0),
       ]);
     }
@@ -75,16 +97,31 @@ class ExportService {
     }
 
     final bytes = excel.encode();
-    if (bytes == null) return;
+    if (bytes == null) {
+      throw Exception('Failed to generate Excel file');
+    }
 
     final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/school_infra_report.xlsx');
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final file = File('${dir.path}/school_infra_report_$timestamp.xlsx');
     await file.writeAsBytes(bytes);
 
-    await Share.shareXFiles(
-      [XFile(file.path)],
+    if (!await file.exists()) {
+      throw Exception('File was not saved');
+    }
+
+    final result = await Share.shareXFiles(
+      [XFile(file.path, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
       subject: 'School Infrastructure Report',
+      sharePositionOrigin: sharePositionOrigin,
     );
+
+    // Clean up temp file after sharing (ignore errors)
+    try {
+      if (result.status != ShareResultStatus.dismissed) {
+        await file.delete();
+      }
+    } catch (_) {}
   }
 
   /// Export single school report as PDF
@@ -92,6 +129,7 @@ class ExportService {
     required School school,
     required List<EnrolmentRecord> enrolment,
     required List<DemandPlan> demands,
+    Rect? sharePositionOrigin,
   }) async {
     final pdf = pw.Document();
     final trend = EnrolmentTrend.compute(school.id, enrolment);
@@ -111,7 +149,7 @@ class ExportService {
                     style: pw.TextStyle(
                         fontSize: 20, fontWeight: pw.FontWeight.bold)),
                 pw.SizedBox(height: 4),
-                pw.Text('Vidya Soudha — AI-Powered BAV System',
+                pw.Text('Vidya Nirmaan — AI-Powered School Infrastructure System',
                     style: const pw.TextStyle(fontSize: 12)),
               ],
             ),
@@ -171,7 +209,7 @@ class ExportService {
                         d.infraTypeLabel,
                         '${d.physicalCount}',
                         d.financialAmount.toStringAsFixed(2),
-                        AppConstants.validationLabel(d.validationStatus),
+                        _demandStatusLabel(d),
                         d.validationScore?.toStringAsFixed(0) ?? '-',
                       ])
                   .toList(),
@@ -188,6 +226,7 @@ class ExportService {
     await Share.shareXFiles(
       [XFile(file.path)],
       subject: '${school.schoolName} - Infrastructure Report',
+      sharePositionOrigin: sharePositionOrigin,
     );
   }
 

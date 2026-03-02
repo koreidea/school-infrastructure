@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/school.dart';
 import '../models/enrolment.dart';
 import '../models/demand_plan.dart';
+import '../config/api_config.dart';
 
 class PdfExportService {
   /// Generate a school report card PDF
@@ -194,10 +195,30 @@ class PdfExportService {
                   child: pw.Text(d.financialAmount.toStringAsFixed(2))),
               pw.Padding(
                   padding: const pw.EdgeInsets.all(6),
-                  child: pw.Text(d.validationStatus)),
+                  child: pw.Text(_demandStatusLabel(d))),
             ])),
       ],
     );
+  }
+
+  /// Descriptive status label showing AI vs Officer stage
+  static String _demandStatusLabel(DemandPlan d) {
+    final stage = d.pipelineStage;
+    switch (stage) {
+      case 'PENDING':
+        return 'Pending (AI Review)';
+      case 'AI_REVIEWED':
+        final aiVerdict = AppConstants.validationLabel(d.validationStatus);
+        return 'AI $aiVerdict (Officer Pending)';
+      case 'FINAL_APPROVED':
+        return 'Approved (Officer)';
+      case 'FLAGGED':
+        return d.isOfficerPending ? 'Flagged (AI)' : 'Flagged (Officer)';
+      case 'REJECTED':
+        return d.isOfficerPending ? 'Rejected (AI)' : 'Rejected (Officer)';
+      default:
+        return stage;
+    }
   }
 
   static Future<void> shareFile(String filePath) async {

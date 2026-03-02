@@ -1,0 +1,213 @@
+============================================================
+AI/ML FEATURES IN VIDYA SOUDHA
+============================================================
+
+
+1. AI-POWERED DEMAND VALIDATION (Rule-Based + Anomaly Detection)
+------------------------------------------------------------
+
+The app uses a multi-layered AI system to validate infrastructure demand plans submitted by schools, detecting fraudulent, inflated, or erroneous requests before they reach officers for approval.
+
+Client-Side Rule Engine (7 Rules):
+
+Rule 1 — Unit Cost Validation
+Compares the financial amount against Samagra Shiksha standard unit costs (e.g., CWSN Resource Room at ₹29.3L/unit). If a school requests 2 units, the expected cost is 2 × ₹29.3L = ₹58.6L. Flags deviations beyond 20% as cost anomalies. Penalty: 25 points for >20% deviation, 10 points for >10% deviation.
+
+Rule 2 — Duplicate Detection
+Identifies duplicate infrastructure requests for the same type and year from the same school. Prevents schools from submitting the same request multiple times to inflate allocation. Penalty: 30 points.
+
+Rule 3 — Enrolment-Demand Correlation
+Cross-references demand quantity against school enrolment size and trend. Flags over-demand for schools with very low enrolment (<20 students requesting >2 units) or schools with declining enrolment requesting expansion infrastructure. Penalty: 15-20 points.
+
+Rule 4 — Peer Comparison
+Compares a school's demand against similar schools in the same mandal/district. Flags outliers requesting 3x or more than the peer average for the same infrastructure type. Penalty: 15 points.
+
+Rule 5 — Zero-Value Check
+Ensures demands have valid physical counts (>0) and financial amounts (>0). Catches data entry errors and incomplete submissions. Penalty: 20-40 points.
+
+Rule 6 — Existing Infrastructure Check
+Cross-references demands against the latest field inspection data. If a Field Inspector has confirmed that the requested infrastructure already exists at the school, the demand is flagged. Penalty: 20 points.
+
+Rule 7 — Over-Reporting Pattern Detection
+Identifies schools submitting excessive demands across multiple infrastructure types (4+ types totalling over ₹50 Lakhs). This pattern indicates possible systematic over-reporting to maximize fund allocation. Penalty: 15 points.
+
+Scoring Mechanism:
+- Starting score: 100
+- Each failed rule deducts points based on severity
+- Final classification:
+  - APPROVED (score ≥ 80): All checks passed or minor issues only
+  - FLAGGED (score 50–79): Moderate issues requiring officer review
+  - REJECTED (score < 50): Critical issues — multiple rules violated
+
+Backend ML Layer — Isolation Forest Anomaly Detection:
+When the Python FastAPI backend is online, an Isolation Forest model supplements the rule engine. It is an unsupervised machine learning algorithm that learns the normal distribution of demand characteristics (cost, quantity, school size, infrastructure type) across all schools and identifies statistically unusual patterns that rule-based checks might miss. This catches novel fraud patterns that were not anticipated by the predefined rules.
+
+Explainable AI:
+Every validation result includes a detailed per-rule breakdown showing:
+- Rule name and what it checks
+- Pass/fail status with specific detail (e.g., "Deviation of 45% from standard cost")
+- Score penalty applied
+- Number of checks performed vs. passed
+This transparency ensures officers can understand and trust AI recommendations rather than treating them as black-box decisions.
+
+
+2. AI PRIORITY SCORING
+------------------------------------------------------------
+
+A composite scoring algorithm assigns each school a priority score (0–100) based on four weighted factors, enabling data-driven resource allocation by directing funds to the most underserved schools first.
+
+Factor 1 — Enrolment Pressure (30% weight)
+Measures the student-to-infrastructure ratio. Schools with higher ratios (overcrowding) score higher. Calculated using:
+- Total enrolment vs. existing classrooms (norm: 30 students/classroom for primary, 35 for secondary)
+- Total enrolment vs. existing toilets (norm: 40 students/toilet)
+Schools exceeding these Samagra Shiksha norms receive higher enrolment pressure scores.
+
+Factor 2 — Infrastructure Gap (30% weight)
+Counts missing critical facilities from the following checklist:
+- CWSN Toilet (available or not)
+- CWSN Resource Room (available or not)
+- Drinking Water (available or not)
+- Electrification (available or not)
+- Ramps & Handrails (available or not)
+Each missing facility increases the infrastructure gap score. A school missing all 5 facilities scores maximum on this factor.
+
+Factor 3 — CWSN Needs (20% weight)
+Evaluates accessibility infrastructure specifically for Children With Special Needs (CWSN/Divyang). Checks for:
+- CWSN-accessible toilets
+- CWSN resource rooms
+- Ramps and handrails for physical accessibility
+Schools lacking CWSN infrastructure score higher, ensuring inclusivity in resource allocation.
+
+Factor 4 — Accessibility Score (20% weight)
+Assesses overall infrastructure accessibility including:
+- Electrification status
+- Drinking water availability
+- Physical access (ramps and handrails)
+Schools with poor overall accessibility receive higher scores.
+
+Priority Classification:
+- CRITICAL (score > 80): Immediate intervention needed — multiple severe infrastructure gaps affecting students
+- HIGH (score > 60): Urgent attention required — significant gaps in critical facilities
+- MEDIUM (score > 40): Planned improvement — moderate gaps to be addressed in next cycle
+- LOW (score ≤ 40): Adequate infrastructure — maintenance-level needs only
+
+The priority scores are computed automatically on first app launch if not already present. Schools are color-coded on the map (Red = Critical, Orange = High, Yellow = Medium, Green = Low) for visual identification of underserved regions.
+
+
+3. ENROLMENT FORECASTING (Linear Regression + Cohort Progression)
+------------------------------------------------------------
+
+The system forecasts student enrolment for the next 3 years to support proactive infrastructure planning, ensuring schools don't face overcrowding before infrastructure is sanctioned.
+
+Backend ML Model 1 — Linear Regression:
+Fits a trend line on historical year-wise enrolment data (4,638 records across multiple academic years). The model identifies the overall growth or decline trajectory and projects future totals based on the linear trend. This works well for schools with consistent growth patterns.
+
+Backend ML Model 2 — Cohort Progression:
+A more sophisticated model that tracks how student cohorts move through grade levels year-over-year. It applies grade-specific progression rates to forecast enrolment at each grade level separately. This captures important patterns such as:
+- High dropout rates at specific grade transitions (e.g., Class 5 to Class 6)
+- Grade-wise intake variations
+- Seasonal enrolment changes
+The combined forecast from both models provides a more accurate prediction than either model alone.
+
+Confidence Intervals:
+Forecasts include declining confidence intervals to reflect increasing uncertainty over time:
+- Year 1 forecast: 90% confidence — high reliability for immediate planning
+- Year 2 forecast: 70% confidence — moderate reliability for medium-term planning
+- Year 3 forecast: 50% confidence — directional guidance for long-term planning
+
+Client-Side Fallback:
+When the Python backend is offline (no internet or server down), the app computes forecasts locally using:
+- EnrolmentTrend.compute() method that calculates historical growth rate from available data
+- Projects 3 years forward using the computed growth rate
+- Applies the same declining confidence intervals
+This ensures the forecasting feature works even in rural areas with poor internet connectivity.
+
+Use Case Example:
+A school showing 15% yearly enrolment growth is forecasted to have 250 students next year (currently 217). With the norm of 30 students per classroom and only 6 existing classrooms (capacity 180), the forecast triggers a proactive request for 2-3 additional classrooms BEFORE overcrowding occurs.
+
+
+4. THREE-STAGE VALIDATION PIPELINE
+------------------------------------------------------------
+
+Demands flow through a transparent three-stage pipeline that combines AI intelligence with human judgment:
+
+Stage 1 — AI Review (Automated):
+- The 7-rule validation engine + Isolation Forest automatically scores every demand plan
+- Results are instant with full explainability (per-rule breakdown)
+- AI assigns: APPROVED, FLAGGED, or REJECTED with confidence score
+- Displayed with robot icon (🤖) to distinguish from human decisions
+
+Stage 2 — Field Assessment (Ground Truth):
+- Field Inspectors visit schools and record actual infrastructure status
+- Digital assessment form captures: existing classrooms, toilets, CWSN facilities, utilities, photos, and notes
+- Assessment data is linked to demand plans for cross-verification
+- Prevents approval of demands for infrastructure that already exists
+
+Stage 3 — Officer Decision (Human-in-the-Loop):
+- District/State Officers review AI scores + field inspection data
+- Manual Approve / Flag / Reject with written notes
+- Displayed with person icon (👤) to distinguish from AI decisions
+- Confirmation dialog records officer name for accountability
+- Final decision authority always remains with humans
+
+Key Principle: AI recommends, humans decide. The pipeline ensures that AI augments human decision-making without replacing it, maintaining accountability and trust.
+
+
+5. ADDITIONAL AI/ML COMPONENTS
+------------------------------------------------------------
+
+5.1 Intelligent Data Scoping
+The app uses role-based data scoping powered by provider-level filtering:
+- State Director sees all 319 schools across 57 districts
+- District Officer sees only schools in their assigned district
+- Block Officer sees only schools in their assigned mandal
+- Headmaster sees only their own school
+This is enforced at the data provider level (effectiveDistrictProvider, effectiveMandalProvider, effectiveSchoolIdProvider) ensuring role-appropriate data access.
+
+5.2 Smart Offline Caching
+The app implements intelligent offline caching:
+- Fetches and caches school data, demand plans, and enrolment records locally
+- When network is unavailable, seamlessly falls back to cached data
+- Pending inspection assessments are queued offline and synced when connectivity returns
+- Client-side ML (forecasting, validation) works without any network dependency
+
+5.3 Color-Coded Map Visualization
+Schools are plotted on an interactive map (flutter_map + OpenStreetMap) with color-coded markers based on AI priority scores:
+- Red markers: CRITICAL priority schools
+- Orange markers: HIGH priority schools
+- Yellow markers: MEDIUM priority schools
+- Green markers: LOW priority schools
+This provides instant geographic visualization of infrastructure need distribution across the state.
+
+5.4 Trend Analysis
+The EnrolmentTrend model computes:
+- Year-wise totals (boys, girls, total)
+- Overall growth rate (percentage)
+- Trend classification: GROWING, STABLE, or DECLINING
+- Per-grade analysis for detailed insights
+This trend data feeds into both the forecasting model and the demand validation rules.
+
+
+6. TECHNOLOGY STACK FOR AI/ML
+------------------------------------------------------------
+
+| Component            | Technology                    | Purpose                          |
+|---------------------|-------------------------------|----------------------------------|
+| Rule Engine         | Dart (Flutter client-side)    | 7-rule demand validation         |
+| Anomaly Detection   | scikit-learn (Isolation Forest)| ML-based fraud detection        |
+| Forecasting         | scikit-learn (Linear Regression)| Enrolment prediction           |
+| Cohort Model        | pandas + numpy                | Grade-wise progression forecast  |
+| Priority Scoring    | Dart (Flutter client-side)    | 4-factor composite scoring       |
+| Data Processing     | pandas                        | Data manipulation and analysis   |
+| API Framework       | FastAPI (Python)              | ML model serving                 |
+| Database            | PostgreSQL (Supabase)         | Data storage and queries         |
+| Visualization       | fl_chart + flutter_map        | Charts and geographic maps       |
+
+Backend Deployment: Railway Cloud (https://web-production-0d5dd.up.railway.app)
+Database: Supabase Cloud (PostgreSQL with Row Level Security)
+Frontend: Flutter 3.10+ (Android + iOS cross-platform)
+
+
+============================================================
+END OF DOCUMENT
+============================================================

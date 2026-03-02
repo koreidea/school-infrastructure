@@ -1,7 +1,58 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../config/api_config.dart';
 import '../models/user.dart';
 import '../services/supabase_service.dart';
+
+/// Demo user entry for quick-login buttons
+class DemoUser {
+  final String phone;
+  final String email;
+  final String name;
+  final String role;
+  final IconData icon;
+
+  const DemoUser({
+    required this.phone,
+    required this.email,
+    required this.name,
+    required this.role,
+    required this.icon,
+  });
+}
+
+/// Pre-configured demo users — one per role
+const List<DemoUser> demoUsers = [
+  DemoUser(
+    phone: '9000000001',
+    email: 'state.director@vidyasoudha.gov.in',
+    name: 'State Education Director',
+    role: AppConstants.roleStateOfficial,
+    icon: Icons.account_balance,
+  ),
+  DemoUser(
+    phone: '9000000002',
+    email: 'deo@vidyasoudha.gov.in',
+    name: 'District Education Officer',
+    role: AppConstants.roleDistrictOfficer,
+    icon: Icons.location_city,
+  ),
+  DemoUser(
+    phone: '9000000003',
+    email: 'meo@vidyasoudha.gov.in',
+    name: 'Mandal Education Officer/Inspector',
+    role: AppConstants.roleFieldInspector,
+    icon: Icons.assignment,
+  ),
+  DemoUser(
+    phone: '9000000005',
+    email: 'headmaster@vidyasoudha.gov.in',
+    name: 'Head Master',
+    role: AppConstants.roleSchoolHM,
+    icon: Icons.person,
+  ),
+];
 
 final currentUserProvider =
     NotifierProvider<CurrentUserNotifier, AsyncValue<AppUser?>>(
@@ -19,6 +70,51 @@ class CurrentUserNotifier extends Notifier<AsyncValue<AppUser?>> {
       state = AsyncValue.data(user);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
+    }
+  }
+
+  /// OTP login — match phone/email to a demo user, else return null for role selection.
+  /// Demo mode: any OTP is accepted.
+  Future<String?> loginWithOtp(String phoneOrEmail, String otp) async {
+    final input = phoneOrEmail.trim();
+    // Find matching demo user by phone or email
+    DemoUser? match;
+    for (final u in demoUsers) {
+      if (u.phone == input || u.email == input) {
+        match = u;
+        break;
+      }
+    }
+    if (match != null) {
+      await _setDemoUserWithPhone(match.role, input);
+      return match.role;
+    }
+    // Unknown user — caller should show role selection
+    return null;
+  }
+
+  /// Login as unknown user with a chosen role
+  Future<void> loginWithRole(String phoneOrEmail, String role) async {
+    await _setDemoUserWithPhone(role, phoneOrEmail.trim());
+  }
+
+  /// Internal: sets demo user and attaches phone/email
+  Future<void> _setDemoUserWithPhone(String role, String phoneOrEmail) async {
+    await setDemoUser(role);
+    // Attach the phone/email to the resulting user
+    final current = state.value;
+    if (current != null) {
+      state = AsyncValue.data(AppUser(
+        id: current.id,
+        name: current.name,
+        phone: phoneOrEmail,
+        role: current.role,
+        districtId: current.districtId,
+        mandalId: current.mandalId,
+        schoolId: current.schoolId,
+        districtName: current.districtName,
+        mandalName: current.mandalName,
+      ));
     }
   }
 
@@ -112,7 +208,7 @@ class CurrentUserNotifier extends Notifier<AsyncValue<AppUser?>> {
       case 'SCHOOL_HM':
         return 'Head Master';
       case 'FIELD_INSPECTOR':
-        return 'Field Inspector';
+        return 'Mandal Education Officer/Inspector';
       default:
         return 'Admin User';
     }

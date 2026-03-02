@@ -85,11 +85,19 @@ CREATE TABLE IF NOT EXISTS si_demand_plans (
     infra_type          TEXT NOT NULL,
     physical_count      INT DEFAULT 0,
     financial_amount    DOUBLE PRECISION DEFAULT 0,
+    -- Stage 1: AI Validation
     validation_status   TEXT DEFAULT 'PENDING',
     validation_score    DOUBLE PRECISION,
     validation_flags    JSONB DEFAULT '[]'::jsonb,
     validated_by        TEXT,
     validated_at        TIMESTAMP WITH TIME ZONE,
+    -- Stage 3: Officer Decision
+    officer_status      TEXT DEFAULT 'PENDING',
+    officer_name        TEXT,
+    officer_reviewed_at TIMESTAMP WITH TIME ZONE,
+    officer_notes       TEXT,
+    -- Stage 2: Field Assessment Link
+    assessment_id       INT REFERENCES si_infra_assessments(id) ON DELETE SET NULL,
     created_at          TIMESTAMP WITH TIME ZONE DEFAULT now(),
     updated_at          TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
@@ -114,6 +122,38 @@ CREATE TABLE IF NOT EXISTS si_infra_assessments (
     photos                       JSONB DEFAULT '[]'::jsonb,
     notes                        TEXT,
     synced                       BOOLEAN DEFAULT false,
+    -- Toilet Breakdown
+    boys_toilets                 INT DEFAULT 0,
+    girls_toilets                INT DEFAULT 0,
+    functional_toilets           INT DEFAULT 0,
+    handwash_available           BOOLEAN DEFAULT false,
+    -- Classroom Quality
+    functional_classrooms        INT DEFAULT 0,
+    furniture_adequacy           TEXT DEFAULT 'Adequate',
+    -- Boundary Wall
+    boundary_wall                TEXT DEFAULT 'None',
+    -- Water Source
+    water_source_type            TEXT DEFAULT 'None',
+    water_purifier_available     BOOLEAN DEFAULT false,
+    -- Kitchen / Mid-Day Meal
+    mdm_kitchen_available        BOOLEAN DEFAULT false,
+    mdm_kitchen_condition        TEXT DEFAULT 'Non-Functional',
+    -- Library
+    library_available            BOOLEAN DEFAULT false,
+    -- Computer / ICT Lab
+    computer_lab_available       BOOLEAN DEFAULT false,
+    functional_computers         INT DEFAULT 0,
+    -- Safety Equipment
+    fire_extinguisher_available  BOOLEAN DEFAULT false,
+    first_aid_available          BOOLEAN DEFAULT false,
+    -- GPS Auto-Capture
+    inspection_latitude          DOUBLE PRECISION,
+    inspection_longitude         DOUBLE PRECISION,
+    -- Per-Infra Condition Ratings
+    building_condition           TEXT DEFAULT 'Good',
+    toilet_condition             TEXT DEFAULT 'Good',
+    electrical_condition         TEXT DEFAULT 'Good',
+    -- Timestamps
     created_at                   TIMESTAMP WITH TIME ZONE DEFAULT now(),
     updated_at                   TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
@@ -188,6 +228,8 @@ CREATE INDEX IF NOT EXISTS idx_si_demand_plans_school      ON si_demand_plans(sc
 CREATE INDEX IF NOT EXISTS idx_si_demand_plans_year        ON si_demand_plans(plan_year);
 CREATE INDEX IF NOT EXISTS idx_si_demand_plans_status      ON si_demand_plans(validation_status);
 CREATE INDEX IF NOT EXISTS idx_si_demand_plans_infra_type  ON si_demand_plans(infra_type);
+CREATE INDEX IF NOT EXISTS idx_si_demand_plans_officer_status ON si_demand_plans(officer_status);
+CREATE INDEX IF NOT EXISTS idx_si_demand_plans_assessment_id  ON si_demand_plans(assessment_id);
 CREATE INDEX IF NOT EXISTS idx_si_infra_assessments_school ON si_infra_assessments(school_id);
 CREATE INDEX IF NOT EXISTS idx_si_infra_assessments_date   ON si_infra_assessments(assessment_date);
 CREATE INDEX IF NOT EXISTS idx_si_infra_assessments_synced ON si_infra_assessments(synced);
@@ -244,18 +286,32 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) p ON true;
 
-CREATE OR REPLACE VIEW si_demand_plans_view AS
+DROP VIEW IF EXISTS si_demand_plans_view;
+CREATE VIEW si_demand_plans_view AS
 SELECT
     dp.id,
     dp.plan_year,
     dp.infra_type,
     dp.physical_count,
     dp.financial_amount,
+    -- Stage 1: AI Validation
     dp.validation_status,
     dp.validation_score,
     dp.validation_flags,
     dp.validated_by,
     dp.validated_at,
+    -- Stage 3: Officer Decision
+    dp.officer_status,
+    dp.officer_name,
+    dp.officer_reviewed_at,
+    dp.officer_notes,
+    -- Stage 2: Assessment Link
+    dp.assessment_id,
+    CASE WHEN ia.id IS NOT NULL THEN true ELSE false END AS has_assessment,
+    ia.assessment_date       AS assessment_date,
+    ia.condition_rating      AS assessment_condition,
+    ia.assessed_by           AS assessment_by,
+    -- School & geography joins
     dp.school_id,
     s.udise_code,
     s.school_name,
@@ -268,9 +324,10 @@ SELECT
     dp.created_at,
     dp.updated_at
 FROM si_demand_plans dp
-JOIN si_schools     s ON s.id = dp.school_id
-LEFT JOIN si_districts d ON d.id = s.district_id
-LEFT JOIN si_mandals   m ON m.id = s.mandal_id;
+JOIN si_schools     s  ON s.id  = dp.school_id
+LEFT JOIN si_districts d  ON d.id  = s.district_id
+LEFT JOIN si_mandals   m  ON m.id  = s.mandal_id
+LEFT JOIN si_infra_assessments ia ON ia.id = dp.assessment_id;
 
 -- =============================================================================
 -- RLS POLICIES

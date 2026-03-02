@@ -1,0 +1,292 @@
+============================================================
+VIDYA SOUDHA - PPT SLIDE CONTENT
+IndiaAI Innovation Challenge - Problem Statement 5
+School Infrastructure Planning & Monitoring
+============================================================
+
+------------------------------------------------------------
+SLIDE 1: TITLE SLIDE
+------------------------------------------------------------
+Title: Vidya Soudha (విద్యా సౌధ)
+Subtitle: AI-Powered School Infrastructure Planning & Monitoring System
+Challenge: IndiaAI Innovation Challenge - Problem Statement 5
+Organization: Department of School Education, Andhra Pradesh
+Team: [Your Team Name]
+Date: March 2026
+
+------------------------------------------------------------
+SLIDE 2: PROBLEM STATEMENT
+------------------------------------------------------------
+Title: The Problem
+
+- Andhra Pradesh manages 45,000+ schools across 26 districts and 670+ mandals
+- Infrastructure demand planning is manual, paper-based, and prone to errors
+- No systematic way to detect fraudulent or inflated infrastructure requests
+- Resource allocation is not data-driven — funds often go where they are not needed most
+- No real-time visibility into infrastructure gaps across the state
+- Field inspections are disconnected from the demand planning process
+- No enrolment forecasting to plan infrastructure proactively
+
+Key Question: How can AI help ensure the right infrastructure reaches the right schools at the right time?
+
+------------------------------------------------------------
+SLIDE 3: OUR SOLUTION
+------------------------------------------------------------
+Title: Vidya Soudha — AI-Powered Solution
+
+A mobile-first application that brings AI/ML intelligence to every stage of school infrastructure planning:
+
+1. AI Demand Validation — Automatically detects fraudulent, inflated, or erroneous infrastructure requests using 7 rule-based checks + ML anomaly detection
+2. Smart Priority Scoring — Composite AI scoring (0-100) ranks every school by infrastructure need across 4 weighted factors
+3. Enrolment Forecasting — Linear regression + cohort progression models predict student enrolment 3 years ahead for proactive planning
+4. Role-Based Access — 5 distinct roles from State Director to Headmaster, each with purpose-built dashboards
+5. Bilingual Support — Full English and Telugu (తెలుగు) interface
+
+------------------------------------------------------------
+SLIDE 4: SYSTEM ARCHITECTURE
+------------------------------------------------------------
+Title: Technical Architecture
+
+[Diagram showing:]
+
+Mobile App (Flutter)
+    |
+    +--> Supabase (PostgreSQL + Auth + RLS)
+    |       - School data (319 schools)
+    |       - Demand plans (799 records)
+    |       - Enrolment history (4,638 records)
+    |       - Priority scores
+    |       - Inspection assessments
+    |
+    +--> FastAPI ML Backend (Railway Cloud)
+            - Enrolment Forecasting (Linear Regression + Cohort Progression)
+            - Demand Validation (Rule Engine + Isolation Forest)
+            - Analytics API
+
+Tech Stack:
+- Frontend: Flutter 3.10+ with Riverpod 3.x
+- Backend: Python FastAPI with scikit-learn
+- Database: Supabase (PostgreSQL)
+- Charts: fl_chart, flutter_map
+- Deployment: Railway (Backend), Supabase Cloud (Database)
+
+------------------------------------------------------------
+SLIDE 5: AI FEATURE 1 — DEMAND VALIDATION
+------------------------------------------------------------
+Title: AI-Powered Demand Validation
+
+The system validates every infrastructure demand through a multi-layered AI pipeline:
+
+7 Rule-Based Checks:
+1. Unit Cost Validation — Flags deviations >20% from Samagra Shiksha standard costs
+2. Duplicate Detection — Identifies duplicate requests for same infra type and year
+3. Enrolment Correlation — Cross-references demand against school size and trend
+4. Peer Comparison — Compares against similar schools in the region
+5. Zero-Value Check — Rejects invalid physical or financial values
+6. Existing Infrastructure Check — Flags requests for already-available facilities
+7. Over-Reporting Detection — Identifies schools with excessive multi-type demands
+
+ML Layer: Isolation Forest anomaly detection identifies statistically unusual patterns
+
+Scoring: Each demand receives a score (0-100)
+- Approved (>=80) | Flagged (50-79) | Rejected (<50)
+
+Explainable AI: Every decision includes per-rule breakdown showing exactly why a demand was approved, flagged, or rejected
+
+------------------------------------------------------------
+SLIDE 6: AI FEATURE 2 — PRIORITY SCORING
+------------------------------------------------------------
+Title: AI Priority Scoring
+
+Every school receives a composite priority score (0-100) based on 4 weighted factors:
+
+| Factor                  | Weight | What It Measures                              |
+|------------------------|--------|-----------------------------------------------|
+| Enrolment Pressure     | 30%    | Student-to-infrastructure ratio (overcrowding)|
+| Infrastructure Gap     | 30%    | Count of missing critical facilities          |
+| CWSN Needs             | 20%    | Accessibility for Children With Special Needs |
+| Accessibility Score    | 20%    | Overall infrastructure accessibility          |
+
+Priority Levels:
+- CRITICAL (>80) — Immediate intervention needed
+- HIGH (>60) — Urgent attention required
+- MEDIUM (>40) — Planned improvement
+- LOW (<=40) — Adequate infrastructure
+
+Impact: Enables data-driven fund allocation — directing resources to the most underserved schools first
+
+------------------------------------------------------------
+SLIDE 7: AI FEATURE 3 — ENROLMENT FORECASTING
+------------------------------------------------------------
+Title: Enrolment Forecasting
+
+Predicts student enrolment for the next 3 years to enable proactive infrastructure planning:
+
+Two ML Models:
+1. Linear Regression — Fits trend line on historical year-wise enrolment data
+2. Cohort Progression — Tracks how student cohorts move through grade levels with grade-specific progression rates
+
+Confidence Intervals:
+- Year 1: 90% confidence
+- Year 2: 70% confidence
+- Year 3: 50% confidence
+
+Offline Fallback: When backend is unavailable, the app computes forecasts locally using historical growth rates — ensuring functionality even without internet
+
+Use Case: A school showing 15% yearly enrolment growth can proactively request additional classrooms BEFORE overcrowding occurs
+
+------------------------------------------------------------
+SLIDE 8: THREE-STAGE VALIDATION PIPELINE
+------------------------------------------------------------
+Title: Three-Stage Validation Pipeline
+
+Stage 1: AI Review (Automated)
+- Rule engine + Isolation Forest scores every demand
+- Transparent per-rule explanations
+- Instant results
+
+Stage 2: Field Assessment (Ground Truth)
+- Field Inspector visits the school
+- Records actual infrastructure status
+- Photos, notes, and condition assessment
+- Links inspection data to demand plans
+
+Stage 3: Officer Decision (Human-in-the-Loop)
+- District/State Officer reviews AI scores + field data
+- Manual Approve / Flag / Reject with notes
+- Final decision authority remains with humans
+
+Key Principle: AI assists decision-making without replacing human judgment
+
+------------------------------------------------------------
+SLIDE 9: ROLE-BASED ACCESS
+------------------------------------------------------------
+Title: 5 Role-Based Dashboards
+
+| Role               | Data Scope     | Key Capabilities                          |
+|--------------------|---------------|-------------------------------------------|
+| State Director     | All schools   | State-wide analytics, validation, export  |
+| District Officer   | Own district  | District analytics, validation            |
+| Block Officer      | Own mandal    | Mandal-level data, inspection             |
+| Field Inspector    | Own mandal    | Field inspections, assessment forms       |
+| Headmaster         | Own school    | School dashboard, raise requests          |
+
+Headmaster Experience:
+- Purpose-built 2-tab dashboard (My School + My Requests)
+- Raise infrastructure demand requests
+- Track request status through the pipeline
+- View school's priority score and inspection results
+
+------------------------------------------------------------
+SLIDE 10: APP SCREENS OVERVIEW
+------------------------------------------------------------
+Title: App Walkthrough
+
+[Screenshots of:]
+1. Login Screen — Role selection with bilingual support
+2. Overview Dashboard — Stats cards, priority pie chart, demand summary
+3. Schools List — Filterable, searchable, priority-coded
+4. School Profile — Enrolment chart, forecast, demand plans, priority breakdown
+5. Map View — Color-coded school markers by priority level
+6. Validation Tab — AI validate, rule breakdown, officer approve/reject
+7. Analytics Tab — Charts and insights
+8. HM Dashboard — School-specific view with infrastructure status
+9. Inspection Form — Field inspector assessment with photo capture
+10. Telugu Mode — Full bilingual interface
+
+------------------------------------------------------------
+SLIDE 11: DATA & SCALE
+------------------------------------------------------------
+Title: Data Summary
+
+| Data                    | Records  | Source                        |
+|------------------------|----------|-------------------------------|
+| Schools                | 319      | UDISE+ / Samagra Shiksha      |
+| Districts              | 57       | AP Education Department        |
+| Mandals                | 707      | AP Education Department        |
+| Demand Plans           | 799      | School submissions             |
+| Enrolment Records      | 4,638    | Year/grade-wise historical     |
+| Infrastructure Types   | 5        | Samagra Shiksha norms          |
+
+Standard Unit Costs (Samagra Shiksha):
+- CWSN Resource Room: Rs 29.3 Lakhs
+- CWSN Toilet: Rs 4.65 Lakhs
+- Drinking Water: Rs 3.40 Lakhs
+- Electrification: Rs 1.75 Lakhs
+- Ramps & Handrails: Rs 1.25 Lakhs
+
+------------------------------------------------------------
+SLIDE 12: KEY DIFFERENTIATORS
+------------------------------------------------------------
+Title: What Makes Vidya Soudha Unique
+
+1. Explainable AI — Not a black box. Every validation decision shows per-rule breakdown with scores
+2. Offline-First — App works without internet using cached data and client-side ML fallback
+3. Human-in-the-Loop — AI recommends, humans decide. Three-stage pipeline ensures accountability
+4. Bilingual — Full English + Telugu support for grassroots adoption
+5. Mobile-First — Works on any Android/iOS device, designed for field use
+6. Cloud-Deployed — Railway backend accessible from any network, Supabase cloud database
+7. Scalable — Architecture supports 45,000+ schools across all AP districts
+
+------------------------------------------------------------
+SLIDE 13: IMPACT & OUTCOMES
+------------------------------------------------------------
+Title: Expected Impact
+
+For the State:
+- 30-40% reduction in fraudulent/inflated infrastructure demands through AI validation
+- Data-driven fund allocation based on priority scoring
+- Real-time visibility into infrastructure gaps across 26 districts
+
+For Officers:
+- 70% reduction in manual validation effort
+- Transparent AI explanations for faster, better decisions
+- Peer comparison analytics for regional planning
+
+For Schools:
+- Faster processing of genuine infrastructure requests
+- Proactive planning through enrolment forecasting
+- Direct digital channel for headmasters to raise demands
+
+For Students:
+- Right infrastructure reaches the right schools
+- Better CWSN accessibility through targeted scoring
+- Improved learning environment through data-driven planning
+
+------------------------------------------------------------
+SLIDE 14: FUTURE ROADMAP
+------------------------------------------------------------
+Title: Future Enhancements
+
+Phase 2 (Next 3 months):
+- Push notifications for request status updates
+- Officer-to-Inspector assignment workflow
+- Photo-based infrastructure verification using Computer Vision
+- Integration with UDISE+ real-time data feeds
+
+Phase 3 (6 months):
+- Budget optimization engine — maximize infrastructure coverage within budget constraints
+- Predictive maintenance — forecast when existing infrastructure will need repair
+- Natural Language reports — AI-generated summary reports for policymakers
+- Dashboard for elected representatives (MLAs/MPs)
+
+Phase 4 (12 months):
+- Scale to all 45,000+ schools in Andhra Pradesh
+- Expand to other states
+- Integration with PM-SHRI and Samagra Shiksha portals
+
+------------------------------------------------------------
+SLIDE 15: THANK YOU
+------------------------------------------------------------
+Title: Thank You
+
+App: Vidya Soudha (విద్యా సౌధ)
+AI-Powered School Infrastructure Planning & Monitoring
+
+Tech: Flutter + FastAPI + Supabase + scikit-learn
+AI: Rule Engine + Isolation Forest + Linear Regression + Cohort Progression
+
+Team: [Your Team Name]
+Contact: [Your Contact Info]
+
+"Ensuring every child in Andhra Pradesh learns in a safe, well-equipped school."

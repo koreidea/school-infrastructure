@@ -7,11 +7,24 @@ class DemandPlan {
   final String infraType;
   final int physicalCount;
   final double financialAmount;
+  // Stage 1: AI Validation
   final String validationStatus;
   final double? validationScore;
   final List<dynamic>? validationFlags;
   final String? validatedBy;
   final DateTime? validatedAt;
+  // Stage 3: Officer Decision
+  final String officerStatus;
+  final String? officerName;
+  final DateTime? officerReviewedAt;
+  final String? officerNotes;
+  // Stage 2: Assessment Link
+  final int? assessmentId;
+  final bool hasAssessment;
+  final DateTime? assessmentDate;
+  final String? assessmentCondition;
+  final String? assessmentBy;
+  // Denormalized joins
   final String? schoolName;
   final String? districtName;
   final String? mandalName;
@@ -28,6 +41,15 @@ class DemandPlan {
     this.validationFlags,
     this.validatedBy,
     this.validatedAt,
+    this.officerStatus = 'PENDING',
+    this.officerName,
+    this.officerReviewedAt,
+    this.officerNotes,
+    this.assessmentId,
+    this.hasAssessment = false,
+    this.assessmentDate,
+    this.assessmentCondition,
+    this.assessmentBy,
     this.schoolName,
     this.districtName,
     this.mandalName,
@@ -48,6 +70,19 @@ class DemandPlan {
       validatedAt: json['validated_at'] != null
           ? DateTime.tryParse(json['validated_at'].toString())
           : null,
+      officerStatus: json['officer_status'] as String? ?? 'PENDING',
+      officerName: json['officer_name'] as String?,
+      officerReviewedAt: json['officer_reviewed_at'] != null
+          ? DateTime.tryParse(json['officer_reviewed_at'].toString())
+          : null,
+      officerNotes: json['officer_notes'] as String?,
+      assessmentId: json['assessment_id'] as int?,
+      hasAssessment: json['has_assessment'] as bool? ?? false,
+      assessmentDate: json['assessment_date'] != null
+          ? DateTime.tryParse(json['assessment_date'].toString())
+          : null,
+      assessmentCondition: json['assessment_condition'] as String?,
+      assessmentBy: json['assessment_by'] as String?,
       schoolName: json['school_name'] as String?,
       districtName: json['district_name'] as String?,
       mandalName: json['mandal_name'] as String?,
@@ -63,6 +98,12 @@ class DemandPlan {
         'validation_status': validationStatus,
         'validation_score': validationScore,
         'validation_flags': validationFlags,
+        'officer_status': officerStatus,
+        'officer_name': officerName,
+        'officer_reviewed_at': officerReviewedAt?.toIso8601String(),
+        'officer_notes': officerNotes,
+        'assessment_id': assessmentId,
+        'has_assessment': hasAssessment,
       };
 
   String get infraTypeLabel => AppConstants.infraTypeLabel(infraType);
@@ -75,10 +116,39 @@ class DemandPlan {
 
   bool get isCostAnomalous => costDeviation.abs() > 20;
 
-  bool get isPending => validationStatus == AppConstants.validationPending;
-  bool get isApproved => validationStatus == AppConstants.validationApproved;
-  bool get isFlagged => validationStatus == AppConstants.validationFlagged;
-  bool get isRejected => validationStatus == AppConstants.validationRejected;
+  // --- Stage 1: AI Validation getters ---
+  bool get isAIPending => validationStatus == AppConstants.validationPending;
+  bool get isAIApproved => validationStatus == AppConstants.validationApproved;
+  bool get isAIFlagged => validationStatus == AppConstants.validationFlagged;
+  bool get isAIRejected => validationStatus == AppConstants.validationRejected;
+  bool get isAIReviewed => validationStatus != AppConstants.validationPending;
+
+  // --- Stage 3: Officer Decision getters ---
+  bool get isOfficerPending => officerStatus == AppConstants.validationPending;
+  bool get isOfficerApproved => officerStatus == AppConstants.validationApproved;
+  bool get isOfficerFlagged => officerStatus == AppConstants.validationFlagged;
+  bool get isOfficerRejected => officerStatus == AppConstants.validationRejected;
+
+  // --- Stage 2: Assessment gate (hard gate) ---
+  bool get needsAssessment => !hasAssessment;
+  bool get canOfficerApprove => hasAssessment;
+
+  // --- Pipeline stage (for tab filtering & display) ---
+  String get pipelineStage {
+    if (isAIPending) return 'PENDING';
+    if (isOfficerApproved) return 'FINAL_APPROVED';
+    if (isOfficerFlagged) return 'FLAGGED';
+    if (isOfficerRejected) return 'REJECTED';
+    // AI reviewed but officer hasn't decided yet
+    if (isAIReviewed && isOfficerPending) return 'AI_REVIEWED';
+    return 'PENDING';
+  }
+
+  // --- Legacy compatibility (used by overview stats, school profile, etc.) ---
+  bool get isPending => isAIPending;
+  bool get isApproved => isOfficerApproved;
+  bool get isFlagged => isOfficerFlagged;
+  bool get isRejected => isOfficerRejected;
 }
 
 class ValidationResult {

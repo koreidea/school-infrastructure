@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/school.dart';
+import '../models/demand_plan.dart';
 import '../models/user.dart';
 import '../services/supabase_service.dart';
 import '../services/offline_cache_service.dart';
@@ -37,6 +38,18 @@ class _SearchNotifier extends Notifier<String> {
   void set(String value) => state = value;
 }
 
+class _InfraTypeNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+  void set(String? value) => state = value;
+}
+
+class _ManagementFilterNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+  void set(String? value) => state = value;
+}
+
 final selectedDistrictProvider =
     NotifierProvider<_DistrictNotifier, int?>(_DistrictNotifier.new);
 final selectedMandalProvider =
@@ -45,6 +58,10 @@ final selectedCategoryProvider =
     NotifierProvider<_CategoryNotifier, String?>(_CategoryNotifier.new);
 final selectedPriorityProvider =
     NotifierProvider<_PriorityNotifier, String?>(_PriorityNotifier.new);
+final selectedInfraTypeProvider =
+    NotifierProvider<_InfraTypeNotifier, String?>(_InfraTypeNotifier.new);
+final selectedManagementProvider =
+    NotifierProvider<_ManagementFilterNotifier, String?>(_ManagementFilterNotifier.new);
 final searchQueryProvider =
     NotifierProvider<_SearchNotifier, String>(_SearchNotifier.new);
 
@@ -161,20 +178,101 @@ final schoolsProvider = FutureProvider<List<School>>((ref) async {
   }
 });
 
-// Filtered schools with search
+// All schools with role-based scoping only (no priority/category/search filters).
+// Used by priorityScoresProvider so pie chart always shows full distribution.
+final allSchoolsProvider = FutureProvider<List<School>>((ref) async {
+  final districtId = ref.watch(effectiveDistrictProvider);
+  final mandalId = ref.watch(effectiveMandalProvider);
+
+  final userAsync = ref.watch(currentUserProvider);
+  final AppUser? user;
+  switch (userAsync) {
+    case AsyncData(:final value):
+      user = value;
+    default:
+      user = null;
+  }
+
+  try {
+    if (user != null && user.isSchoolHM && user.schoolId != null) {
+      final school = await SupabaseService.getSchool(user.schoolId!);
+      return school != null ? [school] : [];
+    }
+    return await SupabaseService.getSchools(
+      districtId: districtId,
+      mandalId: mandalId,
+    );
+  } catch (e) {
+    if (OfflineCacheService.hasSchoolsCache()) {
+      return OfflineCacheService.getCachedSchools();
+    }
+    rethrow;
+  }
+});
+
+// Filtered schools with search + infra type demand filter + management filter
 final filteredSchoolsProvider = Provider<AsyncValue<List<School>>>((ref) {
   final schoolsAsync = ref.watch(schoolsProvider);
   final query = ref.watch(searchQueryProvider).toLowerCase();
+  final infraType = ref.watch(selectedInfraTypeProvider);
+  final management = ref.watch(selectedManagementProvider);
 
   return schoolsAsync.whenData((schools) {
-    if (query.isEmpty) return schools;
-    return schools.where((s) {
-      return s.schoolName.toLowerCase().contains(query) ||
-          (s.districtName?.toLowerCase().contains(query) ?? false) ||
-          (s.mandalName?.toLowerCase().contains(query) ?? false) ||
-          s.udiseCode.toString().contains(query);
-    }).toList();
+    var filtered = schools;
+
+    // Filter by management type
+    if (management != null) {
+      filtered = filtered.where((s) => s.schoolManagement == management).toList();
+    }
+
+    // Filter by infra type: only show schools that have a demand plan of this type
+    if (infraType != null) {
+      final demandsAsync = ref.watch(demandPlansForFilterProvider);
+      final List<DemandPlan> demands;
+      switch (demandsAsync) {
+        case AsyncData(:final value):
+          demands = value;
+        default:
+          demands = [];
+      }
+      final schoolIdsWithDemand = demands
+          .where((d) => d.infraType == infraType)
+          .map((d) => d.schoolId)
+          .toSet();
+      filtered = filtered.where((s) => schoolIdsWithDemand.contains(s.id)).toList();
+    }
+
+    // Search filter
+    if (query.isNotEmpty) {
+      filtered = filtered.where((s) {
+        return s.schoolName.toLowerCase().contains(query) ||
+            (s.districtName?.toLowerCase().contains(query) ?? false) ||
+            (s.mandalName?.toLowerCase().contains(query) ?? false) ||
+            s.udiseCode.toString().contains(query);
+      }).toList();
+    }
+
+    return filtered;
   });
+});
+
+// Demand plans for infra type filter (unaffected by school-level filters)
+final demandPlansForFilterProvider = FutureProvider<List<DemandPlan>>((ref) async {
+  final districtId = ref.watch(effectiveDistrictProvider);
+  final mandalId = ref.watch(effectiveMandalProvider);
+  final schoolId = ref.watch(effectiveSchoolIdProvider);
+  try {
+    return await SupabaseService.getDemandPlans(
+      schoolId: schoolId,
+      districtId: schoolId != null ? null : districtId,
+      mandalId: schoolId != null ? null : mandalId,
+    );
+  } catch (_) {
+    if (OfflineCacheService.hasDemandPlansCache()) {
+      return OfflineCacheService.getCachedDemandPlans();
+    }
+    return [];
+  }
 });
 
 // Single school detail
